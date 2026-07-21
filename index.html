@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 Parking Allocation - 7 Member Team</title>
+    <title>2026 Parking Allocation - 7 Member Team (3 Slots)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -122,7 +122,7 @@
                     <h1 class="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
                         <span class="text-blue-500">🚲</span> 2026 Parking
                     </h1>
-                    <p class="text-zinc-500 text-sm mt-1">7 Member Balanced Rotation</p>
+                    <p class="text-zinc-500 text-sm mt-1">7 Member Balanced Rotation (3 Slots)</p>
                 </div>
                 
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
@@ -134,7 +134,7 @@
                             class="search-input w-full px-5 py-3 rounded-2xl text-zinc-200 text-sm placeholder-zinc-600 shadow-xl"
                         >
                     </div>
-                    <button onclick="exportToCSV()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-5 py-3 rounded-2xl text-sm font-semibold transition-all border border-white/5">
+                    <button onclick="exportToCSV()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 px-5 py-3 rounded-2xl text-sm font-semibold transition-all border border-white/5 whitespace-nowrap">
                         Export CSV
                     </button>
                 </div>
@@ -161,12 +161,13 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-zinc-700"></span> Full Schedule
                 </h2>
                 <div class="flex items-center bg-zinc-900/80 p-1.5 rounded-2xl border border-white/5">
-                    <button onclick="setView('feed')" id="feedBtn" class="text-[10px] font-bold uppercase py-2 px-6 rounded-xl transition-all bg-blue-500 text-white">Card View</button>
+                    <button onclick="setView('feed')" id="feedBtn" class="text-[10px] font-bold uppercase py-2 px-6 rounded-xl transition-all bg-blue-500 text-white shadow-lg">Card View</button>
                     <button onclick="setView('excel')" id="excelBtn" class="text-[10px] font-bold uppercase py-2 px-6 rounded-xl transition-all text-zinc-500">Excel View</button>
                 </div>
             </div>
             
             <div id="allocationFeed" class="space-y-4"></div>
+            
             <div id="allocationExcel" class="hidden glass-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
                 <div class="overflow-x-auto">
                     <table class="excel-table">
@@ -174,10 +175,12 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Weekday</th>
-                                <th>Slot 499</th>
-                                <th>Slot 500</th>
+                                <th>Slot 496</th>
+                                <th>Slot 497</th>
+                                <th>Slot 577</th>
                                 <th>Primary Backup</th>
                                 <th>Secondary Backup</th>
+                                <th>Tertiary Backup</th>
                             </tr>
                         </thead>
                         <tbody id="excelBody"></tbody>
@@ -192,7 +195,6 @@
     </div>
 
     <script>
-        // UPDATED: 7 members (Removed Dayanitta and Eby)
         const members = ["Arjun V K", "Kunuvava", "Arjun Reeja", "Shehmil", "Chanthuraj", "Sumesh", "Akhil"];
         
         const holidays = {
@@ -210,7 +212,7 @@
 
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         let masterData = [];
-        let activeMonth = null;
+        let activeMonth = months[new Date().getMonth()]; // Start with the current month
         let currentView = 'feed';
 
         function formatDateKey(date) {
@@ -229,7 +231,7 @@
                 for (let d = 1; d <= 31; d++) {
                     const date = new Date(2026, m, d);
                     if (date.getMonth() !== m) continue;
-                    if (date.getDay() === 0 || date.getDay() === 6) continue;
+                    if (date.getDay() === 0 || date.getDay() === 6) continue; // Skip weekends
 
                     const dateKey = formatDateKey(date);
                     const holidayName = holidays[dateKey];
@@ -248,12 +250,14 @@
 
                     if (!isHoliday) {
                         const len = members.length;
-                        // Sequential allocation ensures everyone rotates through slots
+                        // Sequential allocation ensures everyone rotates through 3 slots and 3 backups equally
                         entry.assignments = {
-                            slot499: members[workingDayCounter % len],
-                            slot500: members[(workingDayCounter + 1) % len],
-                            backupP: members[(workingDayCounter + 2) % len],
-                            backupS: members[(workingDayCounter + 3) % len]
+                            slot496: members[workingDayCounter % len],
+                            slot497: members[(workingDayCounter + 1) % len],
+                            slot577: members[(workingDayCounter + 2) % len],
+                            backupP: members[(workingDayCounter + 3) % len],
+                            backupS: members[(workingDayCounter + 4) % len],
+                            backupT: members[(workingDayCounter + 5) % len]
                         };
                         workingDayCounter++;
                     }
@@ -286,19 +290,24 @@
                             <p class="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">${item.displayDate}</p>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 relative z-10">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 relative z-10">
                         <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
-                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 499</span>
-                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot499}</p>
+                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 496</span>
+                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot496}</p>
                         </div>
                         <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
-                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 500</span>
-                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot500}</p>
+                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 497</span>
+                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot497}</p>
+                        </div>
+                        <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 577</span>
+                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot577}</p>
                         </div>
                     </div>
                     <div class="text-[10px] text-zinc-500 flex flex-wrap gap-4 justify-between border-t border-white/5 pt-5 relative z-10">
                         <span>Backup: <strong class="text-zinc-300 ml-1 uppercase font-bold">${item.assignments.backupP}</strong></span>
                         <span>Sec: <strong class="text-zinc-300 ml-1 uppercase font-bold">${item.assignments.backupS}</strong></span>
+                        <span>Ter: <strong class="text-zinc-300 ml-1 uppercase font-bold">${item.assignments.backupT}</strong></span>
                     </div>
                 </div>
             `;
@@ -306,10 +315,18 @@
 
         function renderMonthFilter() {
             const container = document.getElementById('monthFilter');
-            container.innerHTML = `<div class="month-chip active border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth(null, this)">All Year</div>` + 
+            container.innerHTML = `<div class="month-chip ${activeMonth === null ? 'active' : 'text-zinc-500'} border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth(null, this)">All Year</div>` + 
                 months.map(m => `
-                    <div class="month-chip border border-white/10 px-6 py-2 rounded-2xl text-zinc-500 text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth('${m}', this)">${m}</div>
+                    <div class="month-chip ${activeMonth === m ? 'active' : 'text-zinc-500'} border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth('${m}', this)">${m}</div>
                 `).join('');
+
+            // Automatically scroll the active month chip into view
+            setTimeout(() => {
+                const activeChip = container.querySelector('.month-chip.active');
+                if (activeChip) {
+                    activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            }, 100);
         }
 
         function setMonth(m, el) {
@@ -356,10 +373,12 @@
                 if (!query) return true;
                 if (item.id.includes(query)) return true;
                 if (item.holidayName?.toLowerCase().includes(query)) return true;
-                return item.assignments?.slot499.toLowerCase().includes(query) ||
-                       item.assignments?.slot500.toLowerCase().includes(query) ||
+                return item.assignments?.slot496.toLowerCase().includes(query) ||
+                       item.assignments?.slot497.toLowerCase().includes(query) ||
+                       item.assignments?.slot577.toLowerCase().includes(query) ||
                        item.assignments?.backupP.toLowerCase().includes(query) ||
-                       item.assignments?.backupS.toLowerCase().includes(query);
+                       item.assignments?.backupS.toLowerCase().includes(query) ||
+                       item.assignments?.backupT.toLowerCase().includes(query);
             });
 
             if (filteredData.length === 0) {
@@ -388,13 +407,16 @@
                                 </div>
                                 <div class="flex flex-1 flex-wrap gap-3">
                                     <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
-                                        <span class="text-[9px] opacity-50 mr-2 font-black">499:</span> ${item.assignments.slot499}
+                                        <span class="text-[9px] opacity-50 mr-2 font-black">496:</span> ${item.assignments.slot496}
                                     </div>
                                     <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
-                                        <span class="text-[9px] opacity-50 mr-2 font-black">500:</span> ${item.assignments.slot500}
+                                        <span class="text-[9px] opacity-50 mr-2 font-black">497:</span> ${item.assignments.slot497}
+                                    </div>
+                                    <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
+                                        <span class="text-[9px] opacity-50 mr-2 font-black">577:</span> ${item.assignments.slot577}
                                     </div>
                                     <div class="bg-zinc-800/40 text-zinc-400 px-4 py-2 rounded-xl text-[11px] border border-white/5">
-                                        Bk: ${item.assignments.backupP} / ${item.assignments.backupS}
+                                        Bk: ${item.assignments.backupP} / ${item.assignments.backupS} / ${item.assignments.backupT}
                                     </div>
                                 </div>
                             </div>
@@ -408,7 +430,7 @@
                             <tr class="holiday-row opacity-60">
                                 <td class="font-mono text-[11px] tracking-tight">${item.id}</td>
                                 <td class="font-medium">${item.dayName}</td>
-                                <td colspan="4" class="text-center text-red-400/60 font-black uppercase tracking-widest py-4 text-[10px]">${item.holidayName}</td>
+                                <td colspan="6" class="text-center text-red-400/60 font-black uppercase tracking-widest py-4 text-[10px]">${item.holidayName}</td>
                             </tr>
                         `;
                     }
@@ -416,10 +438,12 @@
                         <tr>
                             <td class="font-mono text-[11px] text-zinc-500 tracking-tight">${item.id}</td>
                             <td class="text-zinc-400 font-bold text-[11px] uppercase tracking-wider">${item.dayName}</td>
-                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot499}</td>
-                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot500}</td>
+                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot496}</td>
+                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot497}</td>
+                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot577}</td>
                             <td class="text-zinc-300 font-medium">${item.assignments.backupP}</td>
                             <td class="text-zinc-300 font-medium">${item.assignments.backupS}</td>
+                            <td class="text-zinc-300 font-medium">${item.assignments.backupT}</td>
                         </tr>
                     `;
                 }).join('');
@@ -457,18 +481,18 @@
         }
 
         function exportToCSV() {
-            let csv = "Date,Day,Status,Slot 499,Slot 500,Primary Backup,Secondary Backup\n";
+            let csv = "Date,Day,Status,Slot 496,Slot 497,Slot 577,Primary Backup,Secondary Backup,Tertiary Backup\n";
             masterData.forEach(item => {
                 const status = item.isHoliday ? item.holidayName : "Working";
-                csv += `${item.id},${item.dayName},${status},${item.isHoliday ? '' : item.assignments.slot499},${item.isHoliday ? '' : item.assignments.slot500},${item.isHoliday ? '' : item.assignments.backupP},${item.isHoliday ? '' : item.assignments.backupS}\n`;
+                csv += `${item.id},${item.dayName},${status},${item.isHoliday ? '' : item.assignments.slot496},${item.isHoliday ? '' : item.assignments.slot497},${item.isHoliday ? '' : item.assignments.slot577},${item.isHoliday ? '' : item.assignments.backupP},${item.isHoliday ? '' : item.assignments.backupS},${item.isHoliday ? '' : item.assignments.backupT}\n`;
             });
             const link = document.createElement("a");
             link.href = encodeURI("data:text/csv;charset=utf-8," + csv);
-            link.download = "Parking_Allocation_2026_7Member.csv";
+            link.download = "Parking_Allocation_2026_3_Slots.csv";
             link.click();
         }
 
-        // Initialize
+        // Initialize App
         masterData = generateFairYearData();
         renderMonthFilter();
         renderQuickGlance();
