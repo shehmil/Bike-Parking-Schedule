@@ -310,11 +310,22 @@
         let activeMonth = months[new Date().getMonth()];
         let currentView = 'feed';
 
-        const SLOT_TO_BACKUP = {
-            slot496: { backupKey: 'backupP', label: 'Primary Backup' },
-            slot497: { backupKey: 'backupS', label: 'Secondary Backup' },
-            slot577: { backupKey: 'backupT', label: 'Tertiary Backup' }
-        };
+        // Backups are used in strict priority order (Primary, Secondary, Tertiary)
+        // regardless of which slot goes on leave. If only one slot is on leave,
+        // Primary Backup always covers it. Secondary only steps in if Primary is
+        // already covering a different slot on leave that same day, and so on.
+        const SLOT_ORDER = ['slot496', 'slot497', 'slot577'];
+        const BACKUP_PRIORITY = ['backupP', 'backupS', 'backupT'];
+
+        function computeBackupAssignments(item) {
+            const onLeaveSlots = SLOT_ORDER.filter(sk => isSlotOnLeave(item.id, sk));
+            const assignment = {};
+            onLeaveSlots.forEach((slotKey, idx) => {
+                const backupKey = BACKUP_PRIORITY[idx]; // idx 0 -> highest priority available
+                assignment[slotKey] = item.assignments[backupKey];
+            });
+            return assignment;
+        }
 
         function formatDateKey(date) {
             return [
@@ -373,10 +384,10 @@
 
         function slotDisplayHtml(item, slotKey, primaryPerson, extraClasses) {
             const onLeave = isSlotOnLeave(item.id, slotKey);
-            const backupInfo = SLOT_TO_BACKUP[slotKey];
-            const backupPerson = item.assignments[backupInfo.backupKey];
 
             if (onLeave) {
+                const backupAssignments = computeBackupAssignments(item);
+                const backupPerson = backupAssignments[slotKey];
                 return `
                     <span class="${extraClasses} line-through opacity-50">${primaryPerson}</span>
                     <span class="text-rose-400 font-bold ml-1">→ ${backupPerson}</span>
