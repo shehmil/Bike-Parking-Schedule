@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #0a0a0c;
@@ -69,6 +69,12 @@
             border: 1px solid rgba(59, 130, 246, 0.15);
         }
 
+        .slot-pill.on-leave {
+            background: rgba(244, 63, 94, 0.08);
+            color: #fb7185;
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+
         .sticky-header {
             position: sticky;
             top: 0;
@@ -88,11 +94,34 @@
             font-weight: 700;
         }
 
+        .leave-btn {
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 3px 8px;
+            border-radius: 999px;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #71717a;
+            background: rgba(255,255,255,0.03);
+            transition: all 0.2s ease;
+        }
+        .leave-btn:hover {
+            border-color: #ef4444;
+            color: #f87171;
+        }
+        .leave-btn.active {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #f87171;
+        }
+
         .excel-table {
             border-collapse: separate;
             border-spacing: 0;
             width: 100%;
-            min-width: 800px;
+            min-width: 900px;
         }
         .excel-table th {
             background: #18181b;
@@ -111,6 +140,15 @@
             border-bottom: 1px solid rgba(255,255,255,0.03);
             font-size: 0.85rem;
         }
+
+        .sync-dot {
+            width: 7px; height: 7px; border-radius: 999px;
+            background: #f59e0b;
+            display: inline-block;
+            animation: pulse 1.5s infinite;
+        }
+        .sync-dot.connected { background: #22c55e; animation: none; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
     </style>
 </head>
 <body class="antialiased">
@@ -122,15 +160,21 @@
                     <h1 class="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
                         <span class="text-blue-500">🚲</span> 2026 Parking
                     </h1>
-                    <p class="text-zinc-500 text-sm mt-1">7 Member Balanced Rotation (3 Slots)</p>
+                    <p class="text-zinc-500 text-sm mt-1 flex items-center gap-2">
+                        7 Member Balanced Rotation (3 Slots)
+                        <span class="inline-flex items-center gap-1.5 ml-2 text-[10px] uppercase font-bold tracking-wider">
+                            <span id="syncDot" class="sync-dot"></span>
+                            <span id="syncLabel" class="text-zinc-600">Connecting...</span>
+                        </span>
+                    </p>
                 </div>
-                
+
                 <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <div class="relative flex-1 sm:min-w-[320px]">
-                        <input 
-                            type="text" 
-                            id="searchInput" 
-                            placeholder="Search name, date, or holiday..." 
+                        <input
+                            type="text"
+                            id="searchInput"
+                            placeholder="Search name, date, or holiday..."
                             class="search-input w-full px-5 py-3 rounded-2xl text-zinc-200 text-sm placeholder-zinc-600 shadow-xl"
                         >
                     </div>
@@ -165,9 +209,9 @@
                     <button onclick="setView('excel')" id="excelBtn" class="text-[10px] font-bold uppercase py-2 px-6 rounded-xl transition-all text-zinc-500">Excel View</button>
                 </div>
             </div>
-            
+
             <div id="allocationFeed" class="space-y-4"></div>
-            
+
             <div id="allocationExcel" class="hidden glass-card rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
                 <div class="overflow-x-auto">
                     <table class="excel-table">
@@ -194,15 +238,66 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+        import {
+            getDatabase, ref, set, remove, onValue
+        } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD5qyHqK1PWvj6IuslA4SSExyBAdkf0sDA",
+            authDomain: "bike-parking-schedule.firebaseapp.com",
+            databaseURL: "https://bike-parking-schedule-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "bike-parking-schedule",
+            storageBucket: "bike-parking-schedule.firebasestorage.app",
+            messagingSenderId: "538229005257",
+            appId: "1:538229005257:web:e1d752551acb2f285ca618",
+            measurementId: "G-KFCWNRJ5TS"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const leavesRef = ref(db, 'leaves');
+
+        // leaveData shape: { "2026-03-15": { "slot496": true, "slot577": true }, ... }
+        let leaveData = {};
+
+        onValue(leavesRef, (snapshot) => {
+            leaveData = snapshot.val() || {};
+            const dot = document.getElementById('syncDot');
+            const label = document.getElementById('syncLabel');
+            if (dot && label) {
+                dot.classList.add('connected');
+                label.textContent = 'Live';
+                label.classList.remove('text-zinc-600');
+                label.classList.add('text-emerald-500');
+            }
+            renderQuickGlance();
+            renderViewData(document.getElementById('searchInput').value);
+        }, (error) => {
+            const label = document.getElementById('syncLabel');
+            if (label) { label.textContent = 'Offline'; }
+            console.error('Firebase read failed:', error);
+        });
+
+        window.toggleLeave = function(dateId, slotKey) {
+            const isCurrentlyOnLeave = !!(leaveData[dateId] && leaveData[dateId][slotKey]);
+            const path = ref(db, `leaves/${dateId}/${slotKey}`);
+            if (isCurrentlyOnLeave) {
+                remove(path).catch(err => alert('Could not update: ' + err.message));
+            } else {
+                set(path, true).catch(err => alert('Could not update: ' + err.message));
+            }
+        };
+
         const members = ["Gopu", "Kunuvava", "Arjun Reeja", "Shehmil", "Chanthuraj", "Sumesh", "Akhil"];
-        
+
         const holidays = {
             "2026-01-26": "Republic Day",
             "2026-04-03": "Good Friday",
             "2026-04-15": "Vishu",
             "2026-05-01": "May Day",
-            "2026-05-27": "Id-ul-Ad’ha Bakrid",
+            "2026-05-27": "Id-ul-Ad'ha Bakrid",
             "2026-08-25": "First Onam/Milad-i-Sherif",
             "2026-08-26": "Thiruvonam",
             "2026-10-02": "Gandhi Jayanthi",
@@ -212,8 +307,14 @@
 
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
         let masterData = [];
-        let activeMonth = months[new Date().getMonth()]; // Start with the current month
+        let activeMonth = months[new Date().getMonth()];
         let currentView = 'feed';
+
+        const SLOT_TO_BACKUP = {
+            slot496: { backupKey: 'backupP', label: 'Primary Backup' },
+            slot497: { backupKey: 'backupS', label: 'Secondary Backup' },
+            slot577: { backupKey: 'backupT', label: 'Tertiary Backup' }
+        };
 
         function formatDateKey(date) {
             return [
@@ -231,12 +332,12 @@
                 for (let d = 1; d <= 31; d++) {
                     const date = new Date(2026, m, d);
                     if (date.getMonth() !== m) continue;
-                    if (date.getDay() === 0 || date.getDay() === 6) continue; // Skip weekends
+                    if (date.getDay() === 0 || date.getDay() === 6) continue;
 
                     const dateKey = formatDateKey(date);
                     const holidayName = holidays[dateKey];
                     const isHoliday = !!holidayName;
-                    
+
                     let entry = {
                         id: dateKey,
                         month: months[m],
@@ -250,7 +351,6 @@
 
                     if (!isHoliday) {
                         const len = members.length;
-                        // Sequential allocation ensures everyone rotates through 3 slots and 3 backups equally
                         entry.assignments = {
                             slot496: members[workingDayCounter % len],
                             slot497: members[(workingDayCounter + 1) % len],
@@ -265,6 +365,37 @@
                 }
             }
             return data;
+        }
+
+        function isSlotOnLeave(dateId, slotKey) {
+            return !!(leaveData[dateId] && leaveData[dateId][slotKey]);
+        }
+
+        function slotDisplayHtml(item, slotKey, primaryPerson, extraClasses) {
+            const onLeave = isSlotOnLeave(item.id, slotKey);
+            const backupInfo = SLOT_TO_BACKUP[slotKey];
+            const backupPerson = item.assignments[backupInfo.backupKey];
+
+            if (onLeave) {
+                return `
+                    <span class="${extraClasses} line-through opacity-50">${primaryPerson}</span>
+                    <span class="text-rose-400 font-bold ml-1">→ ${backupPerson}</span>
+                `;
+            }
+            return `<span class="${extraClasses}">${primaryPerson}</span>`;
+        }
+
+        function leaveButtonHtml(item, slotKey, primaryPerson) {
+            const onLeave = isSlotOnLeave(item.id, slotKey);
+            return `
+                <button
+                    class="leave-btn ${onLeave ? 'active' : ''}"
+                    onclick="toggleLeave('${item.id}', '${slotKey}')"
+                    title="${onLeave ? 'Cancel leave for ' + primaryPerson : 'Mark ' + primaryPerson + ' on leave'}"
+                >
+                    ${onLeave ? 'On Leave ✕' : 'Mark Leave'}
+                </button>
+            `;
         }
 
         function createHighlightCardHtml(item) {
@@ -282,6 +413,18 @@
                 `;
             }
 
+            const slotBlock = (slotKey, label) => `
+                <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70">${label}</span>
+                        ${leaveButtonHtml(item, slotKey, item.assignments[slotKey])}
+                    </div>
+                    <p class="text-lg font-bold text-white truncate">
+                        ${slotDisplayHtml(item, slotKey, item.assignments[slotKey], '')}
+                    </p>
+                </div>
+            `;
+
             return `
                 <div class="glass-card highlight-card rounded-3xl p-8 min-h-[180px]">
                     <div class="flex justify-between items-start mb-6">
@@ -291,18 +434,9 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 relative z-10">
-                        <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
-                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 496</span>
-                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot496}</p>
-                        </div>
-                        <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
-                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 497</span>
-                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot497}</p>
-                        </div>
-                        <div class="p-4 rounded-2xl bg-white/5 border border-white/5">
-                            <span class="text-[9px] uppercase text-blue-400 font-black tracking-widest opacity-70 mb-1 block">Slot 577</span>
-                            <p class="text-lg font-bold text-white truncate">${item.assignments.slot577}</p>
-                        </div>
+                        ${slotBlock('slot496', 'Slot 496')}
+                        ${slotBlock('slot497', 'Slot 497')}
+                        ${slotBlock('slot577', 'Slot 577')}
                     </div>
                     <div class="text-[10px] text-zinc-500 flex flex-wrap gap-4 justify-between border-t border-white/5 pt-5 relative z-10">
                         <span>Backup: <strong class="text-zinc-300 ml-1 uppercase font-bold">${item.assignments.backupP}</strong></span>
@@ -315,12 +449,11 @@
 
         function renderMonthFilter() {
             const container = document.getElementById('monthFilter');
-            container.innerHTML = `<div class="month-chip ${activeMonth === null ? 'active' : 'text-zinc-500'} border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth(null, this)">All Year</div>` + 
+            container.innerHTML = `<div class="month-chip ${activeMonth === null ? 'active' : 'text-zinc-500'} border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth(null, this)">All Year</div>` +
                 months.map(m => `
                     <div class="month-chip ${activeMonth === m ? 'active' : 'text-zinc-500'} border border-white/10 px-6 py-2 rounded-2xl text-xs font-bold uppercase tracking-widest cursor-pointer" onclick="setMonth('${m}', this)">${m}</div>
                 `).join('');
 
-            // Automatically scroll the active month chip into view
             setTimeout(() => {
                 const activeChip = container.querySelector('.month-chip.active');
                 if (activeChip) {
@@ -329,7 +462,7 @@
             }, 100);
         }
 
-        function setMonth(m, el) {
+        window.setMonth = function(m, el) {
             document.querySelectorAll('.month-chip').forEach(c => {
                 c.classList.remove('active', 'bg-blue-500', 'text-white');
                 c.classList.add('text-zinc-500');
@@ -338,9 +471,9 @@
             el.classList.remove('text-zinc-500');
             activeMonth = m;
             renderViewData(document.getElementById('searchInput').value);
-        }
+        };
 
-        function setView(view) {
+        window.setView = function(view) {
             currentView = view;
             const feedContainer = document.getElementById('allocationFeed');
             const excelContainer = document.getElementById('allocationExcel');
@@ -359,14 +492,14 @@
                 feedBtn.className = "text-[10px] font-bold uppercase py-2 px-6 rounded-xl transition-all text-zinc-500";
             }
             renderViewData(document.getElementById('searchInput').value);
-        }
+        };
 
         function renderViewData(filter = "") {
             const feed = document.getElementById('allocationFeed');
             const excelBody = document.getElementById('excelBody');
             const emptyState = document.getElementById('emptyState');
             const query = filter.toLowerCase();
-            
+
             const filteredData = masterData.filter(item => {
                 const matchesMonth = !activeMonth || item.month === activeMonth;
                 if (!matchesMonth) return false;
@@ -399,6 +532,18 @@
                             </div>
                         `;
                     }
+
+                    const pill = (slotKey, label) => {
+                        const onLeave = isSlotOnLeave(item.id, slotKey);
+                        return `
+                            <div class="slot-pill ${onLeave ? 'on-leave' : ''} px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-2">
+                                <span class="text-[9px] opacity-50 font-black">${label}:</span>
+                                ${slotDisplayHtml(item, slotKey, item.assignments[slotKey], '')}
+                                ${leaveButtonHtml(item, slotKey, item.assignments[slotKey])}
+                            </div>
+                        `;
+                    };
+
                     return `
                         <div class="glass-card rounded-2xl p-6 flex flex-col gap-4 border-l-4 border-blue-500/20">
                             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -406,15 +551,9 @@
                                     <p class="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">${item.displayDate}</p>
                                 </div>
                                 <div class="flex flex-1 flex-wrap gap-3">
-                                    <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
-                                        <span class="text-[9px] opacity-50 mr-2 font-black">496:</span> ${item.assignments.slot496}
-                                    </div>
-                                    <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
-                                        <span class="text-[9px] opacity-50 mr-2 font-black">497:</span> ${item.assignments.slot497}
-                                    </div>
-                                    <div class="slot-pill px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/20">
-                                        <span class="text-[9px] opacity-50 mr-2 font-black">577:</span> ${item.assignments.slot577}
-                                    </div>
+                                    ${pill('slot496', '496')}
+                                    ${pill('slot497', '497')}
+                                    ${pill('slot577', '577')}
                                     <div class="bg-zinc-800/40 text-zinc-400 px-4 py-2 rounded-xl text-[11px] border border-white/5">
                                         Bk: ${item.assignments.backupP} / ${item.assignments.backupS} / ${item.assignments.backupT}
                                     </div>
@@ -434,13 +573,26 @@
                             </tr>
                         `;
                     }
+
+                    const cell = (slotKey) => {
+                        const onLeave = isSlotOnLeave(item.id, slotKey);
+                        return `
+                            <td class="text-blue-400 font-bold uppercase tracking-tight">
+                                <div class="flex items-center gap-2">
+                                    ${slotDisplayHtml(item, slotKey, item.assignments[slotKey], onLeave ? '' : '')}
+                                    ${leaveButtonHtml(item, slotKey, item.assignments[slotKey])}
+                                </div>
+                            </td>
+                        `;
+                    };
+
                     return `
                         <tr>
                             <td class="font-mono text-[11px] text-zinc-500 tracking-tight">${item.id}</td>
                             <td class="text-zinc-400 font-bold text-[11px] uppercase tracking-wider">${item.dayName}</td>
-                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot496}</td>
-                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot497}</td>
-                            <td class="text-blue-400 font-bold uppercase tracking-tight">${item.assignments.slot577}</td>
+                            ${cell('slot496')}
+                            ${cell('slot497')}
+                            ${cell('slot577')}
                             <td class="text-zinc-300 font-medium">${item.assignments.backupP}</td>
                             <td class="text-zinc-300 font-medium">${item.assignments.backupS}</td>
                             <td class="text-zinc-300 font-medium">${item.assignments.backupT}</td>
@@ -453,17 +605,17 @@
         function renderQuickGlance() {
             const container = document.getElementById('quickGlance');
             const now = new Date();
-            let anchorDate = now.getFullYear() === 2026 ? now : new Date(2026, 0, 7); 
+            let anchorDate = now.getFullYear() === 2026 ? now : new Date(2026, 0, 7);
             const todayKey = formatDateKey(anchorDate);
-            
+
             const todayData = masterData.find(d => d.id === todayKey);
             const nextAssignmentIndex = masterData.findIndex(d => d.id === todayKey) + 1;
             const nextAssignmentData = masterData[nextAssignmentIndex] || null;
 
             let html = "";
-            if (todayData) { 
-                todayData.label = "Today's Allocation"; 
-                html += createHighlightCardHtml(todayData); 
+            if (todayData) {
+                todayData.label = "Today's Allocation";
+                html += createHighlightCardHtml(todayData);
             } else {
                 html += `
                     <div class="glass-card rounded-3xl p-8 flex flex-col justify-center min-h-[180px] opacity-40">
@@ -473,26 +625,33 @@
                 `;
             }
 
-            if (nextAssignmentData) { 
-                nextAssignmentData.label = "Next Working Day"; 
-                html += createHighlightCardHtml(nextAssignmentData); 
+            if (nextAssignmentData) {
+                nextAssignmentData.label = "Next Working Day";
+                html += createHighlightCardHtml(nextAssignmentData);
             }
             container.innerHTML = html;
         }
 
-        function exportToCSV() {
-            let csv = "Date,Day,Status,Slot 496,Slot 497,Slot 577,Primary Backup,Secondary Backup,Tertiary Backup\n";
+        window.exportToCSV = function() {
+            let csv = "Date,Day,Status,Slot 496,Slot 497,Slot 577,Primary Backup,Secondary Backup,Tertiary Backup,Leave Notes\n";
             masterData.forEach(item => {
                 const status = item.isHoliday ? item.holidayName : "Working";
-                csv += `${item.id},${item.dayName},${status},${item.isHoliday ? '' : item.assignments.slot496},${item.isHoliday ? '' : item.assignments.slot497},${item.isHoliday ? '' : item.assignments.slot577},${item.isHoliday ? '' : item.assignments.backupP},${item.isHoliday ? '' : item.assignments.backupS},${item.isHoliday ? '' : item.assignments.backupT}\n`;
+                let leaveNotes = [];
+                if (!item.isHoliday) {
+                    ['slot496','slot497','slot577'].forEach(sk => {
+                        if (isSlotOnLeave(item.id, sk)) {
+                            leaveNotes.push(`${item.assignments[sk]} on leave (${sk})`);
+                        }
+                    });
+                }
+                csv += `${item.id},${item.dayName},${status},${item.isHoliday ? '' : item.assignments.slot496},${item.isHoliday ? '' : item.assignments.slot497},${item.isHoliday ? '' : item.assignments.slot577},${item.isHoliday ? '' : item.assignments.backupP},${item.isHoliday ? '' : item.assignments.backupS},${item.isHoliday ? '' : item.assignments.backupT},"${leaveNotes.join('; ')}"\n`;
             });
             const link = document.createElement("a");
             link.href = encodeURI("data:text/csv;charset=utf-8," + csv);
             link.download = "Parking_Allocation_2026_3_Slots.csv";
             link.click();
-        }
+        };
 
-        // Initialize App
         masterData = generateFairYearData();
         renderMonthFilter();
         renderQuickGlance();
@@ -502,12 +661,13 @@
 
         setInterval(() => {
             const timeEl = document.getElementById('currentTime');
-            if(timeEl) {
+            if (timeEl) {
                 const now = new Date();
-                timeEl.innerText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + 
+                timeEl.innerText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' +
                                   now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             }
         }, 1000);
     </script>
 </body>
 </html>
+
