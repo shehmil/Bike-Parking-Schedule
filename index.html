@@ -290,7 +290,7 @@
             }
         };
 
-        const members = ["Gopu", "Kunuvava", "Arjun Reeja", "Shehmil", "Chanthuraj", "Sumesh", "Akhil"];
+        const members = ["Gopu", "User1", "Arjun Reeja", "Shehmil", "Chanthuraj", "Sumesh", "Akhil"];
 
         const holidays = {
             "2026-01-26": "Republic Day",
@@ -659,12 +659,24 @@
 
         document.getElementById('searchInput').addEventListener('input', (e) => renderViewData(e.target.value));
 
+        let lastSeenDateKey = formatDateKey(new Date());
+
         setInterval(() => {
             const timeEl = document.getElementById('currentTime');
+            const now = new Date();
             if (timeEl) {
-                const now = new Date();
                 timeEl.innerText = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' +
                                   now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            }
+
+            // Detect when the calendar day rolls over (e.g. tab left open past midnight)
+            const currentDateKey = formatDateKey(now);
+            if (currentDateKey !== lastSeenDateKey) {
+                lastSeenDateKey = currentDateKey;
+                activeMonth = months[now.getMonth()];
+                renderMonthFilter();
+                renderQuickGlance();
+                renderViewData(document.getElementById('searchInput').value);
             }
         }, 1000);
     </script>
